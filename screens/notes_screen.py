@@ -41,9 +41,8 @@ class NotesController:
             width_mult=3,
         )
 
-        # Dialog + input handles
         self._name_dialog = None
-        self._name_field = None  # MDTextField kept while dialog is open
+        self._name_field = None  # MDTextField while dialog is open
 
     # ---------- Menus ----------
     def open_sort_menu(self, caller_widget):
@@ -65,7 +64,7 @@ class NotesController:
         # close the dropdown first
         self._add_menu.dismiss()
 
-        # Build the text field and keep a reference
+        # input field
         self._name_field = MDTextField(
             hint_text="Folder name" if kind == "folder" else "Note title",
             text="",
@@ -74,19 +73,14 @@ class NotesController:
             height="48dp",
         )
 
-        # Define button callbacks as real functions (no late-binding issues)
-        def on_cancel(*_):
-            self._dismiss_name_dialog()
+        def on_cancel(*_): self._dismiss_name_dialog()
+        def on_create(*_): self._do_create(kind)
 
-        def on_create(*_):
-            self._do_create(kind)
-
-        # Create the dialog and keep a handle to it
         self._name_dialog = MDDialog(
             title="Create Folder" if kind == "folder" else "Create Note",
             type="custom",
             content_cls=self._name_field,
-            auto_dismiss=False,  # we’ll close it ourselves
+            auto_dismiss=False,
             buttons=[
                 MDFlatButton(text="Cancel", on_release=on_cancel),
                 MDRaisedButton(text="Create", on_release=on_create),
@@ -98,25 +92,19 @@ class NotesController:
         if self._name_dialog:
             self._name_dialog.dismiss()
             self._name_dialog = None
-        # keep field a bit longer in case we read it post-dismiss; then clear
         Clock.schedule_once(lambda dt: setattr(self, "_name_field", None), 0)
 
     def _do_create(self, kind: str):
-        # Read the text from the input field at click time
-        name_text = ""
-        if self._name_field:
-            name_text = self._name_field.text or ""
-
-        # Close dialog first
+        name_text = self._name_field.text if self._name_field else ""
         self._dismiss_name_dialog()
 
-        name = (name_text.strip()
-                or ("Untitled Folder" if kind == "folder" else "Untitled Note"))
+        name = name_text.strip() or ("Untitled Folder" if kind ==
+                                     "folder" else "Untitled Note")
 
         folder = self._get_current_folder()
         children = folder.setdefault("children", [])
-
         now = datetime.now().isoformat()
+
         if kind == "folder":
             new_item = {
                 "id": f"f{uuid4().hex[:8]}",
@@ -131,24 +119,11 @@ class NotesController:
                 "name": name,
                 "type": "note",
                 "created": now,
+                "content": "",  # NEW: body storage
             }
 
         children.append(new_item)
-
-        # Refresh UI on the next frame to avoid redraw quirks after closing dialog
         Clock.schedule_once(lambda dt: self.render_browser(), 0)
-
-        # Small visual confirmation (toast)
-        try:
-            from kivymd.toast import toast
-            toast(
-                f'Created {"folder" if kind == "folder" else "note"}: {name}')
-        except Exception:
-            pass  # toast not critical
-
-        # (optional) auto-open the new note
-        # if kind == "note":
-        #     self.open_item(new_item["id"])
 
     # ---------- FS helpers ----------
     def _get_current_folder(self):
@@ -205,7 +180,10 @@ class NotesController:
             self.app.current_path.append(target["id"])
             self.render_browser()
         else:
+            # load selected note into app state
+            self.app.open_note_id = target["id"]
             self.app.open_note_title = target["name"]
+            self.app.open_note_body = target.get("content", "")
             sm = self.app.root.ids.sm
             sm.transition.direction = "left"
             sm.current = "note_view"

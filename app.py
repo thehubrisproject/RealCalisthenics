@@ -22,14 +22,18 @@ class RCApp(MDApp):
     current_path = ListProperty([])  # list of folder ids from root → current
     sort_mode = StringProperty("date")  # 'date' | 'name' | 'type'
     sort_label = StringProperty("Date")
-    open_note_title = StringProperty("")
     current_folder_name = StringProperty("")
+
+    # open note state
+    open_note_id = StringProperty("")
+    open_note_title = StringProperty("")
+    open_note_body = StringProperty("")
 
     def build(self):
         self.title = "RealCalisthenics (Prototype)"
         self.theme_cls.theme_style = "Dark"
 
-        # Load ONLY base.kv (it includes the others and instantiates screens)
+        # Load ONLY base.kv (includes define + instantiate screens)
         root = Builder.load_file("kv/base.kv")
 
         # Controllers
@@ -43,14 +47,14 @@ class RCApp(MDApp):
             "root": {"id": "root", "name": "", "type": "folder", "created": now, "children": [
                 {"id": "f1", "name": "Calisthenics", "type": "folder", "created": now, "children": [
                     {"id": "n1", "name": "Planche ideas",
-                        "type": "note", "created": now},
+                        "type": "note", "created": now, "content": ""},
                     {"id": "n2", "name": "Front lever drills",
-                        "type": "note", "created": now},
+                        "type": "note", "created": now, "content": ""},
                 ]},
                 {"id": "f2", "name": "Work", "type": "folder",
                     "created": now, "children": []},
                 {"id": "n3", "name": "Shopping list",
-                    "type": "note", "created": now},
+                    "type": "note", "created": now, "content": ""},
             ]}
         }
         self._set_active_icon("notes")
@@ -82,6 +86,39 @@ class RCApp(MDApp):
         else:
             timer_icon.text_color = self.theme_cls.primary_color
             notes_icon.text_color = self.theme_cls.text_color
+
+    # -------- Note editor plumbing --------
+    def focus_note_text(self):
+        """Focus the editor when the T button is pressed."""
+        try:
+            editor = self.root.ids.sm.get_screen('note_view').ids.note_editor
+            editor.focus = True
+        except Exception:
+            pass
+
+    def update_open_note_text(self, txt: str):
+        """Update app state and the underlying note object as user types."""
+        self.open_note_body = txt
+        # find current note object and persist in memory
+        note = self._find_note_by_id(self.open_note_id)
+        if note and note.get("type") == "note":
+            note["content"] = txt
+
+    def _find_note_by_id(self, note_id: str):
+        """Depth-first search through the fs tree to find a note by id."""
+        if not note_id:
+            return None
+
+        def dfs(node):
+            if node.get("id") == note_id:
+                return node
+            for ch in node.get("children", []):
+                found = dfs(ch)
+                if found:
+                    return found
+            return None
+
+        return dfs(self.fs.get("root", {}))
 
 
 if __name__ == "__main__":
