@@ -1,0 +1,43 @@
+# =============================
+# kv/timer.kv
+# =============================
+
+<TimerScreen@MDScreen>:
+    name: "timer"
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTabs:
+            id: timer_tabs
+            tab_indicator_anim: True
+            tab_bar_height: "48dp"
+            # force tab bar content centered
+            on_tab_bar: self.tab_bar.padding = (self.width - self.tab_bar.minimum_width) / 2, 0
+
+            IconTab:
+                icon: "metronome"
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Metronome — empty"
+                        halign: "center"
+                        valign: "center"
+
+            IconTab:
+                icon: "timer-outline"
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Timer — empty"
+                        halign: "center"
+                        valign: "center"
+
+            IconTab:
+                icon: "timer-sand"
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Stopwatch — empty"
+                        halign: "center"
+                        valign: "center"

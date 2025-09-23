@@ -10,6 +10,9 @@ from datetime import datetime
 
 from screens.notes_screen import NotesController
 
+# <-- registers IconTab with the KV Factory
+from widgets.icon_tab import IconTab
+
 # Dev window
 Window.size = (320, 600)
 Window.minimum_width = 320

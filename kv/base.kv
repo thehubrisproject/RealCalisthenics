@@ -5,9 +5,10 @@
 #:import ButtonBehavior kivy.uix.behaviors.ButtonBehavior
 #:import SlideTransition kivy.uix.screenmanager.SlideTransition
 
-# Include class definitions BEFORE we instantiate them
+# Include screen/class definitions first
 #:include kv/notes.kv
 #:include kv/note_view.kv
+#:include kv/timer.kv
 
 <ClickableBox@ButtonBehavior+MDBoxLayout>:
     md_bg_color: app.theme_cls.bg_dark
@@ -22,17 +23,11 @@ MDScreen:
             size_hint_y: .90
             transition: SlideTransition(duration=.20)
 
-            # Instantiate the screens (classes defined in the includes)
+            # These screens define their own content.
+            # Only TimerScreen has the top MDTabs.
             NotesScreen:
             NoteView:
-
-            # -------- TIMER (placeholder) --------
-            MDScreen:
-                name: "timer"
-                MDLabel:
-                    text: "Timer — empty"
-                    halign: "center"
-                    valign: "center"
+            TimerScreen:
 
         # ---------- Bottom bar (10%, two equal halves, icons centered) ----------
         MDBoxLayout:
