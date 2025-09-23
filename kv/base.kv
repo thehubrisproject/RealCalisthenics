@@ -1,0 +1,71 @@
+# =============================
+# kv/base.kv
+# =============================
+
+#:import ButtonBehavior kivy.uix.behaviors.ButtonBehavior
+#:import SlideTransition kivy.uix.screenmanager.SlideTransition
+
+# Include class definitions BEFORE we instantiate them
+#:include kv/notes.kv
+#:include kv/note_view.kv
+
+<ClickableBox@ButtonBehavior+MDBoxLayout>:
+    md_bg_color: app.theme_cls.bg_dark
+
+MDScreen:
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # ---------- Top content (about 90% height) ----------
+        MDScreenManager:
+            id: sm
+            size_hint_y: .90
+            transition: SlideTransition(duration=.20)
+
+            # Instantiate the screens (classes defined in the includes)
+            NotesScreen:
+            NoteView:
+
+            # -------- TIMER (placeholder) --------
+            MDScreen:
+                name: "timer"
+                MDLabel:
+                    text: "Timer — empty"
+                    halign: "center"
+                    valign: "center"
+
+        # ---------- Bottom bar (10%, two equal halves, icons centered) ----------
+        MDBoxLayout:
+            id: bottom_bar
+            size_hint_y: .10
+            spacing: 0
+            md_bg_color: app.theme_cls.bg_dark
+            orientation: "horizontal"
+
+            # LEFT HALF (Notes)
+            ClickableBox:
+                size_hint_x: .5
+                on_release: app.switch_tab("notes")
+                MDAnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    MDIcon:
+                        id: tab_notes
+                        icon: "note-text-outline"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.text_color
+                        font_size: "28sp"
+
+            # RIGHT HALF (Timer)
+            ClickableBox:
+                size_hint_x: .5
+                on_release: app.switch_tab("timer")
+                MDAnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    MDIcon:
+                        id: tab_timer
+                        icon: "timer-outline"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.text_color
+                        font_size: "28sp"

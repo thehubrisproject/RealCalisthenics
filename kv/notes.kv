@@ -1,0 +1,76 @@
+# =============================
+# kv/notes.kv
+# =============================
+
+<FileHeader@MDBoxLayout>:
+    size_hint_y: None
+    height: "48dp"
+    padding: "8dp"
+    spacing: "6dp"
+    md_bg_color: app.theme_cls.bg_dark
+    MDIconButton:
+        id: back_btn
+        icon: "arrow-left"
+        opacity: 1 if app.current_path else 0
+        disabled: False if app.current_path else True
+        on_release: app.notes.go_up()
+    MDLabel:
+        id: folder_title
+        text: app.current_folder_name or "All Notes"
+        halign: "left"
+        valign: "middle"
+    Widget:
+
+    # NEW: add (+) button
+    MDIconButton:
+        id: add_btn
+        icon: "plus"
+        on_release: app.notes.open_add_menu(self)
+
+    MDRaisedButton:
+        id: sort_btn
+        text: app.sort_label
+        on_release: app.notes.open_sort_menu(self)
+
+# Renders the icon + caption for each tile (folders/notes)
+<FileTile>:
+    radius: [12,]
+    padding: "8dp"
+    ripple_behavior: True
+    elevation: 2
+    md_bg_color: app.theme_cls.bg_dark  # card color
+    size_hint_y: None
+    height: "90dp"
+
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "6dp"
+        MDIcon:
+            icon: root.icon_name
+            halign: "center"
+            theme_text_color: "Custom"
+            text_color: app.theme_cls.text_color
+            font_size: "28sp"
+        MDLabel:
+            text: root.caption if root.caption else "Untitled"
+            halign: "center"
+            theme_text_color: "Custom"
+            text_color: app.theme_cls.text_color
+            font_style: "Caption"
+            shorten: True
+            shorten_from: "right"
+
+# Define a class; we instantiate it in base.kv
+<NotesScreen@MDScreen>:
+    name: "notes"
+    MDBoxLayout:
+        orientation: "vertical"
+        FileHeader:
+        ScrollView:
+            bar_width: "4dp"
+            MDGridLayout:
+                id: grid
+                cols: 3
+                adaptive_height: True
+                padding: "8dp"
+                spacing: "8dp"

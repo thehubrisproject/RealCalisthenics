@@ -1,0 +1,27 @@
+# =============================
+# kv/note_view.kv
+# =============================
+
+# Define a class; we will instantiate it in base.kv
+<NoteView@MDScreen>:
+    name: "note_view"
+    MDBoxLayout:
+        orientation: "vertical"
+        MDBoxLayout:
+            size_hint_y: None
+            height: "48dp"
+            padding: "8dp"
+            spacing: "6dp"
+            md_bg_color: app.theme_cls.bg_dark
+            MDIconButton:
+                icon: "arrow-left"
+                on_release: app.switch_tab("notes")
+            MDLabel:
+                id: note_title
+                text: app.open_note_title or "Note"
+                halign: "center"
+                valign: "middle"
+        MDLabel:
+            text: "Empty note — features coming next"
+            halign: "center"
+            valign: "center"
