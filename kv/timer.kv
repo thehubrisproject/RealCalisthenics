@@ -8,14 +8,50 @@
     MDBoxLayout:
         orientation: "vertical"
 
+        # --- Custom centered icon header ---
+        MDBoxLayout:
+            size_hint_y: None
+            height: "48dp"
+            md_bg_color: app.theme_cls.primary_color
+
+            MDAnchorLayout:
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDBoxLayout:
+                    size_hint_x: None
+                    width: self.minimum_width
+                    spacing: "28dp"
+
+                    MDIconButton:
+                        icon: "metronome"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        on_release: app.timer_select_tab("metronome")
+
+                    MDIconButton:
+                        icon: "timer-outline"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        on_release: app.timer_select_tab("timer")
+
+                    MDIconButton:
+                        icon: "timer-sand"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        on_release: app.timer_select_tab("stopwatch")
+
+        # --- Tabs content (header hidden) ---
         MDTabs:
             id: timer_tabs
             tab_indicator_anim: True
-            tab_bar_height: "48dp"
-            # force tab bar content centered
-            on_tab_bar: self.tab_bar.padding = (self.width - self.tab_bar.minimum_width) / 2, 0
+            tab_bar_height: 0   # hide built-in tab bar; we use our own
+
+            # Note: we still give each tab a unique "text" so switch_tab() works,
+            # but the text is not visible because the bar is hidden.
 
             IconTab:
+                text: "metronome"
                 icon: "metronome"
                 MDBoxLayout:
                     orientation: "vertical"
@@ -25,6 +61,7 @@
                         valign: "center"
 
             IconTab:
+                text: "timer"
                 icon: "timer-outline"
                 MDBoxLayout:
                     orientation: "vertical"
@@ -34,6 +71,7 @@
                         valign: "center"
 
             IconTab:
+                text: "stopwatch"
                 icon: "timer-sand"
                 MDBoxLayout:
                     orientation: "vertical"

@@ -5,10 +5,9 @@
 #:import ButtonBehavior kivy.uix.behaviors.ButtonBehavior
 #:import SlideTransition kivy.uix.screenmanager.SlideTransition
 
-# Include screen/class definitions first
+# ---- Include class definitions for the Notes screens ----
 #:include kv/notes.kv
 #:include kv/note_view.kv
-#:include kv/timer.kv
 
 <ClickableBox@ButtonBehavior+MDBoxLayout>:
     md_bg_color: app.theme_cls.bg_dark
@@ -23,11 +22,92 @@ MDScreen:
             size_hint_y: .90
             transition: SlideTransition(duration=.20)
 
-            # These screens define their own content.
-            # Only TimerScreen has the top MDTabs.
+            # Instantiate screens defined in included KV
             NotesScreen:
             NoteView:
-            TimerScreen:
+
+            # -------- TIMER (container with our own header) --------
+            MDScreen:
+                name: "timer"
+                MDBoxLayout:
+                    orientation: "vertical"
+
+                    # --- Custom top bar with 3 equal icon "tabs" (no ripple) ---
+                    MDBoxLayout:
+                        id: timer_top_bar
+                        size_hint_y: None
+                        height: "48dp"
+                        padding: "0dp"
+                        spacing: "0dp"
+                        md_bg_color: app.theme_cls.bg_dark
+
+                        # Metronome
+                        ClickableBox:
+                            size_hint_x: 1
+                            on_release: app.switch_timer_mode("metronome")
+                            MDAnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                MDIcon:
+                                    id: icon_metronome
+                                    icon: "metronome"
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.text_color
+                                    font_size: "22sp"
+
+                        # Timer (countdown)
+                        ClickableBox:
+                            size_hint_x: 1
+                            on_release: app.switch_timer_mode("timer")
+                            MDAnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                MDIcon:
+                                    id: icon_timer
+                                    icon: "timer-outline"
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.text_color
+                                    font_size: "22sp"
+
+                        # Stopwatch
+                        ClickableBox:
+                            size_hint_x: 1
+                            on_release: app.switch_timer_mode("stopwatch")
+                            MDAnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                MDIcon:
+                                    id: icon_stopwatch
+                                    icon: "timer-sand"
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.text_color
+                                    font_size: "22sp"
+
+                    # --- Main area that switches by mode (WITH transitions) ---
+                    MDScreenManager:
+                        id: timer_modes
+                        transition: SlideTransition(duration=.20)
+
+                        MDScreen:
+                            name: "metronome"
+                            MDLabel:
+                                text: "Metronome — empty"
+                                halign: "center"
+                                valign: "center"
+
+                        MDScreen:
+                            name: "timer"
+                            MDLabel:
+                                text: "Timer — empty"
+                                halign: "center"
+                                valign: "center"
+
+                        MDScreen:
+                            name: "stopwatch"
+                            MDLabel:
+                                text: "Stopwatch — empty"
+                                halign: "center"
+                                valign: "center"
 
         # ---------- Bottom bar (10%, two equal halves, icons centered) ----------
         MDBoxLayout:
