@@ -37,6 +37,43 @@
     canvas.after:
         PopMatrix
 
+<MetronomeDial>:
+    # draw dial base + rotating hand using self.angle
+    canvas.before:
+        Color:
+            rgba: (0, 0, 0, 0)
+        RoundedRectangle:
+            pos: self.x, self.y + dp(20)
+            size: self.width, self.height - dp(20)
+            radius: [dp(20), dp(20), dp(20), dp(20)]
+        # Dial base
+        Color:
+            rgba: app.theme_cls.bg_dark
+        Ellipse:
+            pos: self.x, self.y
+            size: self.size
+        # Outer ring
+        Color:
+            rgba: (1, 1, 1, 0.08)
+        Line:
+            circle: (self.center_x, self.center_y, self.width/2 - dp(6), 0, 360)
+            width: 1.2
+
+    canvas.after:
+        # Rotating tick at the edge
+        PushMatrix
+        Rotate:
+            angle: -self.angle
+            origin: self.center
+        Color:
+            rgba: (1, 1, 1, 0.9)
+        Line:
+            points: [self.center_x + (self.width/2 - dp(14)), self.center_y, self.center_x + (self.width/2 - dp(8)), self.center_y]
+            width: 1.4
+        PopMatrix
+
+
+
 
 MDScreen:
     MDBoxLayout:
@@ -169,32 +206,13 @@ MDScreen:
                                     size_hint_y: None
                                     height: "8dp"
 
-                                # --- Visual dial (static for now) ---
-                                Widget:
+                                # --- Visual dial (interactive) ---
+                                MetronomeDial:
                                     size_hint: None, None
                                     width: dp(220)
                                     height: dp(220)
                                     pos_hint: {"center_x": 0.5}
-                                    canvas.before:
-                                        Color:
-                                            rgba: (0, 0, 0, 0)
-                                        RoundedRectangle:
-                                            pos: self.x, self.y + dp(20)
-                                            size: self.width, self.height - dp(20)
-                                            radius: [dp(20), dp(20), dp(20), dp(20)]
-                                        # Dial base
-                                        Color:
-                                            rgba: app.theme_cls.bg_dark
-                                        Ellipse:
-                                            pos: self.x, self.y
-                                            size: self.size
-                                        # Outer ring
-                                        Color:
-                                            rgba: (1, 1, 1, 0.08)
-                                        Line:
-                                            circle: (self.center_x, self.center_y, self.width/2 - dp(6), 0, 360)
-                                            width: 1.2
-
+             
                         # ==================== TIMER TAB ====================
                         MDScreen:
                             name: "timer"

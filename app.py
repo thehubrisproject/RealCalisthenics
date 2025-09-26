@@ -12,10 +12,79 @@ from kivymd.app import MDApp
 
 from screens.notes_screen import NotesController
 
+from math import atan2, degrees
+from kivy.uix.widget import Widget
+
+
 # Dev window size
 Window.size = (320, 600)
 Window.minimum_width = 320
 Window.minimum_height = 600
+
+
+class MetronomeDial(Widget):
+    """Rotatable dial: 1 BPM per 22.5 degrees (1/16 of a full turn)."""
+    # current visual angle (0..360) — used by KV canvas to rotate the hand
+    angle = NumericProperty(0)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._dragging = False
+        self._start_bpm = 0
+        self._last_ang = 0.0
+        self._accum_deg = 0.0
+
+    def _angle_from_touch(self, touch):
+        cx, cy = self.center
+        dx, dy = touch.x - cx, touch.y - cy
+        ang = degrees(atan2(dy, dx))  # -180..180
+        if ang < 0:
+            ang += 360
+        return ang  # 0..360
+
+    def on_touch_down(self, touch):
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        self._dragging = True
+        self._last_ang = self._angle_from_touch(touch)
+        self._accum_deg = 0.0
+        app = MDApp.get_running_app()
+        self._start_bpm = app.bpm
+        return True
+
+    def on_touch_move(self, touch):
+        if not self._dragging:
+            return super().on_touch_move(touch)
+
+        ang = self._angle_from_touch(touch)
+
+        # incremental delta since last event, normalized to (-180, 180]
+        d = ang - self._last_ang
+        if d > 180:
+            d -= 360
+        elif d <= -180:
+            d += 360
+
+        self._accum_deg -= d
+        self._last_ang = ang
+
+        step_deg = 22.5  # 1/16 turn per BPM
+        bpm_delta = int(round(self._accum_deg / step_deg))
+
+        app = MDApp.get_running_app()
+        new_bpm = max(30, min(300, self._start_bpm + bpm_delta))
+        if new_bpm != app.bpm:
+            app.bpm = new_bpm
+
+        # keep visual angle growing; no modulo so it won't snap
+        self.angle = app.bpm * step_deg
+        return True
+
+    def on_touch_up(self, touch):
+        if self._dragging:
+            self._dragging = False
+            return True
+        return super().on_touch_up(touch)
 
 
 class RCApp(MDApp):
