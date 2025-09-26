@@ -7,7 +7,7 @@ from kivy.clock import Clock
 
 from kivy.core.window import Window
 from kivy.lang import Builder
-from kivy.properties import StringProperty, DictProperty, ListProperty
+from kivy.properties import StringProperty, DictProperty, ListProperty, NumericProperty, BooleanProperty
 from kivymd.app import MDApp
 
 from screens.notes_screen import NotesController
@@ -31,6 +31,9 @@ class RCApp(MDApp):
 
     # Timer sub-mode state
     timer_mode = StringProperty("metronome")
+    # Metronome state
+    bpm = NumericProperty(60)
+    is_metronome_running = BooleanProperty(False)
 
     def build(self):
         self.title = "RealCalisthenics (Prototype)"
@@ -74,6 +77,7 @@ class RCApp(MDApp):
         Clock.schedule_once(lambda dt: self.switch_timer_mode("metronome"), 0)
 
     # -------- Bottom bar (Notes / Timer) --------
+
     def switch_tab(self, name: str):
         sm = self.root.ids.sm
         order = ["notes", "note_view", "timer"]
@@ -92,6 +96,22 @@ class RCApp(MDApp):
 
         if name == "timer":
             Clock.schedule_once(lambda dt: self._highlight_timer_icons(), 0)
+
+     # -------- Metronome actions --------
+
+    def toggle_metronome(self):
+        if self.is_metronome_running:
+            self.stop_metronome()
+        else:
+            self.start_metronome()
+
+    def start_metronome(self):
+        self.is_metronome_running = True
+        # (tick scheduling & sound will be added later)
+
+    def stop_metronome(self):
+        self.is_metronome_running = False
+        # (cancel tick scheduling later)
 
     def _set_active_icon(self, name: str):
         notes_icon = self.root.ids.tab_notes

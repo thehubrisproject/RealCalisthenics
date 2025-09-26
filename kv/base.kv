@@ -1,9 +1,7 @@
-# =============================
-# kv/base.kv
-# =============================
-
 #:import ButtonBehavior kivy.uix.behaviors.ButtonBehavior
 #:import SlideTransition kivy.uix.screenmanager.SlideTransition
+#:import dp kivy.metrics.dp
+#:import Animation kivy.animation.Animation
 
 # ---- Include class definitions for the Notes screens ----
 #:include kv/notes.kv
@@ -11,6 +9,34 @@
 
 <ClickableBox@ButtonBehavior+MDBoxLayout>:
     md_bg_color: app.theme_cls.bg_dark
+
+<RoundedButton@ButtonBehavior+MDBoxLayout>:
+    size_hint: None, None
+    size: dp(56), dp(56)
+    md_bg_color: 0, 0, 0, 0
+    radius: [dp(12)]  # rounded corners
+    scale: 1
+    on_press:
+        Animation.cancel_all(self)
+        Animation(scale=0.92, d=0.10, t='out_quad').start(self)
+    on_release:
+        Animation.cancel_all(self)
+        Animation(scale=1, d=0.14, t='out_quad').start(self)
+    canvas.before:
+        PushMatrix
+        Scale:
+            origin: self.center
+            x: self.scale
+            y: self.scale
+        Color:
+            rgba: (1, 1, 1, 0.08)  # subtle card background
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+    canvas.after:
+        PopMatrix
+
 
 MDScreen:
     MDBoxLayout:
@@ -88,13 +114,88 @@ MDScreen:
                         id: timer_modes
                         transition: SlideTransition(duration=.20)
 
+                        # ==================== METRONOME TAB ====================
                         MDScreen:
                             name: "metronome"
-                            MDLabel:
-                                text: "Metronome — empty"
-                                halign: "center"
-                                valign: "center"
 
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                padding: "12dp"
+                                spacing: "16dp"
+                                
+                                # --- Single toggle button (square, centered, play/pause) ---
+                                MDAnchorLayout:
+                                    size_hint_y: None
+                                    height: "72dp"
+                                    anchor_x: "center"
+                                    anchor_y: "center"
+                                    RoundedButton:
+                                        on_release: app.toggle_metronome()
+                                        MDAnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIcon:
+                                                icon: "pause" if app.is_metronome_running else "play"
+                                                theme_text_color: "Custom"
+                                                text_color: app.theme_cls.text_color
+                                                font_size: "26sp"
+                                                halign: "center"
+                                                valign: "center"
+
+                                # ▼▼ add this spacer just below the button ▼▼
+                                Widget:
+                                    size_hint_y: None
+                                    height: "16dp"   # try 16–24dp to taste
+
+
+
+                                # --- Big number + 'BPM' directly under it ---
+                                MDBoxLayout:
+                                    orientation: "vertical"
+                                    adaptive_height: True
+                                    spacing: "32dp"
+                                    MDLabel:
+                                        text: str(app.bpm)
+                                        halign: "center"
+                                        font_style: "H4"
+                                    MDLabel:
+                                        text: "BPM"
+                                        halign: "center"
+                                        theme_text_color: "Secondary"
+                                        font_style: "Caption"
+
+                                # --- Spacer to push labels away from dial ---
+                                Widget:
+                                    size_hint_y: None
+                                    height: "8dp"
+
+                                # --- Visual dial (static for now) ---
+                                Widget:
+                                    size_hint: None, None
+                                    width: dp(220)
+                                    height: dp(220)
+                                    pos_hint: {"center_x": 0.5}
+                                    canvas.before:
+                                        Color:
+                                            rgba: (0, 0, 0, 0)
+                                        RoundedRectangle:
+                                            pos: self.x, self.y + dp(20)
+                                            size: self.width, self.height - dp(20)
+                                            radius: [dp(20), dp(20), dp(20), dp(20)]
+                                        # Dial base
+                                        Color:
+                                            rgba: app.theme_cls.bg_dark
+                                        Ellipse:
+                                            pos: self.x, self.y
+                                            size: self.size
+                                        # Outer ring
+                                        Color:
+                                            rgba: (1, 1, 1, 0.08)
+                                        Line:
+                                            circle: (self.center_x, self.center_y, self.width/2 - dp(6), 0, 360)
+                                            width: 1.2
+
+                        # ==================== TIMER TAB ====================
                         MDScreen:
                             name: "timer"
                             MDLabel:
@@ -102,6 +203,7 @@ MDScreen:
                                 halign: "center"
                                 valign: "center"
 
+                        # ==================== STOPWATCH TAB ====================
                         MDScreen:
                             name: "stopwatch"
                             MDLabel:
