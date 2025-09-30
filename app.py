@@ -1,12 +1,16 @@
-# =============================
 # app.py
-# =============================
-
 from datetime import datetime
-from kivy.clock import Clock
+from time import perf_counter
+import os
+import wave
+import struct
+import math
 
+from kivy.clock import Clock
+from kivy.core.audio import SoundLoader
 from kivy.core.window import Window
 from kivy.lang import Builder
+from kivy.metrics import dp
 from kivy.properties import (
     StringProperty,
     DictProperty,
@@ -14,20 +18,16 @@ from kivy.properties import (
     NumericProperty,
     BooleanProperty,
 )
+from kivy.uix.widget import Widget
+# Wheels
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.boxlayout import BoxLayout
+from kivymd.uix.label import MDLabel
 from kivymd.app import MDApp
 
-from screens.notes_screen import NotesController
-
 from math import atan2, degrees
-from kivy.uix.widget import Widget
 
-from time import perf_counter
-
-from kivy.core.audio import SoundLoader
-import wave
-import struct
-import math
-import os
+from screens.notes_screen import NotesController
 
 # Dev window size
 Window.size = (320, 600)
@@ -35,9 +35,11 @@ Window.minimum_width = 320
 Window.minimum_height = 600
 
 
+# ---------------------------
+# Metronome Dial
+# ---------------------------
 class MetronomeDial(Widget):
     """Rotatable dial: 1 BPM per 22.5 degrees (1/16 of a full turn)."""
-    # current visual angle (grows with bpm; rendering uses -angle to rotate clockwise)
     angle = NumericProperty(0)
 
     def __init__(self, **kwargs):
@@ -50,10 +52,10 @@ class MetronomeDial(Widget):
     def _angle_from_touch(self, touch):
         cx, cy = self.center
         dx, dy = touch.x - cx, touch.y - cy
-        ang = degrees(atan2(dy, dx))  # -180..180
+        ang = degrees(atan2(dy, dx))
         if ang < 0:
             ang += 360
-        return ang  # 0..360
+        return ang
 
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos):
@@ -70,19 +72,16 @@ class MetronomeDial(Widget):
             return super().on_touch_move(touch)
 
         ang = self._angle_from_touch(touch)
-
-        # incremental delta since last event, normalized to (-180, 180]
         d = ang - self._last_ang
         if d > 180:
             d -= 360
         elif d <= -180:
             d += 360
 
-        # invert so clockwise drag increases BPM
         self._accum_deg -= d
         self._last_ang = ang
 
-        step_deg = 22.5  # 1/16 turn per BPM
+        step_deg = 22.5
         bpm_delta = int(round(self._accum_deg / step_deg))
 
         app = MDApp.get_running_app()
@@ -90,7 +89,6 @@ class MetronomeDial(Widget):
         if new_bpm != app.bpm:
             app.bpm = new_bpm
 
-        # keep visual angle growing; no modulo so it won't snap
         self.angle = app.bpm * step_deg
         return True
 
@@ -101,6 +99,210 @@ class MetronomeDial(Widget):
         return super().on_touch_up(touch)
 
 
+# ---------------------------
+# iOS-style NumberWheel
+#  - exact centering
+#  - momentum-snap
+#  - tap-to-select (fixed: no vertical mirroring)
+# ---------------------------
+class NumberWheel(ScrollView):
+    values = ListProperty([])
+    value_index = NumericProperty(0)
+    unit = StringProperty("")   # "hours" | "min" | "sec"
+
+    ROW_H = dp(36)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.do_scroll_x = False
+        self.bar_width = 0
+        self.effect_cls = "ScrollEffect"
+
+        self._box = BoxLayout(orientation="vertical",
+                              size_hint_y=None, spacing=0)
+        self.add_widget(self._box)
+
+        # rebuild triggers
+        self.bind(size=lambda *_: Clock.schedule_once(self._rebuild, 0))
+        self.bind(values=lambda *_: Clock.schedule_once(self._rebuild, 0))
+
+        # interaction flags
+        self._built = False
+        self._touch_active = False
+        self._touch_scrolled = False
+        self._start_scroll_y = None
+
+        # momentum snap watcher
+        self._snap_ev = None
+        self._vel_threshold = 5.0  # lower = waits longer before snapping
+
+    # spacer so a row aligns with the visual center
+    def _center_pad(self):
+        return (self.height - self.ROW_H) / 2.0 if self.height else dp(40)
+
+    def on_value_index(self, *_):
+        pass
+
+    # ---------- touch handling ----------
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self._touch_active = True
+            self._touch_scrolled = False
+            self._start_scroll_y = self.scroll_y
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if self._touch_active and self.collide_point(*touch.pos):
+            if abs(self.scroll_y - (self._start_scroll_y or self.scroll_y)) > 0.003:
+                self._touch_scrolled = True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if self._touch_active:
+            self._touch_active = False
+            if not self._touch_scrolled:
+                # tap -> snap to the exact row you tapped (corrected for coord system)
+                idx = self._index_from_touch(touch)
+                self._scroll_to_index(idx, animate=True)
+            else:
+                # drag release -> wait for momentum to slow, then snap to nearest
+                self._begin_momentum_snap()
+        return super().on_touch_up(touch)
+
+    # ---------- momentum snap ----------
+    def _begin_momentum_snap(self):
+        if self._snap_ev:
+            self._snap_ev.cancel()
+            self._snap_ev = None
+
+        eff = getattr(self, "effect_y", None)
+        if eff is None:
+            self._snap_to_nearest()
+            return
+
+        self._snap_ev = Clock.schedule_interval(self._check_snap_ready, 0)
+
+    def _check_snap_ready(self, dt):
+        eff = getattr(self, "effect_y", None)
+        if eff is None:
+            self._snap_to_nearest()
+            return False
+        vel = abs(float(getattr(eff, "velocity", 0.0)) or 0.0)
+        if vel < self._vel_threshold:
+            if self._snap_ev:
+                self._snap_ev.cancel()
+                self._snap_ev = None
+            self._snap_to_nearest()
+            return False
+        return True
+
+    # ---------- internals ----------
+    def _rebuild(self, *_):
+        self._box.clear_widgets()
+        if not self.values:
+            return
+
+        pad = self._center_pad()
+        # top/bottom spacers so a row can sit at the visual center line
+        self._box.add_widget(BoxLayout(size_hint_y=None, height=pad))
+        for s in self.values:
+            self._box.add_widget(
+                MDLabel(
+                    text=s,
+                    halign="center",
+                    size_hint_y=None,
+                    height=self.ROW_H,
+                    theme_text_color="Custom",
+                    text_color=(1, 1, 1, 1),
+                    font_size="20sp",
+                )
+            )
+        self._box.add_widget(BoxLayout(size_hint_y=None, height=pad))
+        self._box.height = pad * 2 + len(self.values) * self.ROW_H
+        self._built = True
+        Clock.schedule_once(lambda dt: self._scroll_to_index(
+            self.value_index, animate=False), 0)
+
+    def _index_from_scroll(self):
+        """Nearest row whose center is closest to the viewport center."""
+        if not self._built or not self.values:
+            return 0
+        content_h = self._box.height
+        view_h = self.height
+        if content_h <= view_h:
+            return 0
+
+        top_to_view_top = (1 - self.scroll_y) * (content_h - view_h)
+        y_center = top_to_view_top + view_h / 2.0
+        pad = self._center_pad()
+
+        y_rel = y_center - (pad + self.ROW_H / 2.0)
+        idx = int(round(y_rel / self.ROW_H))
+        return max(0, min(len(self.values) - 1, idx))
+
+    def _index_from_touch(self, touch):
+        """Map a tap Y to the nearest row index (fixed: bottom-origin -> top-origin)."""
+        if not self._built or not self.values or not self.collide_point(*touch.pos):
+            return self.value_index
+
+        # local y within widget (0 at bottom)
+        local_y = touch.y - self.y
+
+        content_h = self._box.height
+        view_h = self.height
+        if content_h <= view_h:
+            return self.value_index
+
+        # distance from content top to top of viewport
+        top_to_view_top = (1 - self.scroll_y) * (content_h - view_h)
+
+        # convert local_y (bottom-origin) to distance from the top of the viewport
+        y_from_view_top = view_h - local_y
+
+        # absolute content y where the tap occurred
+        y_content = top_to_view_top + y_from_view_top
+
+        pad = self._center_pad()
+        y_rel = y_content - (pad + self.ROW_H / 2.0)
+        idx = int(round(y_rel / self.ROW_H))
+        return max(0, min(len(self.values) - 1, idx))
+
+    def _scroll_to_index(self, idx: int, animate=True):
+        if not self._built:
+            return
+        idx = max(0, min(len(self.values) - 1, idx))
+
+        content_h = self._box.height
+        view_h = self.height
+        if content_h <= view_h:
+            return
+
+        pad = self._center_pad()
+        # absolute Y (content coords) of target row center
+        y_target = pad + idx * self.ROW_H + self.ROW_H / 2.0
+        # top-of-viewport so its center hits y_target
+        top_to_view_top = y_target - view_h / 2.0
+        top_to_view_top = max(0.0, min(content_h - view_h, top_to_view_top))
+        target_scroll_y = 1.0 - (top_to_view_top / (content_h - view_h))
+
+        from kivy.animation import Animation
+        if animate:
+            Animation.cancel_all(self, "scroll_y")
+            Animation(scroll_y=target_scroll_y, d=0.12,
+                      t="out_quart").start(self)
+        else:
+            self.scroll_y = target_scroll_y
+
+        self.value_index = idx
+
+    def _snap_to_nearest(self, *_):
+        idx = self._index_from_scroll()
+        self._scroll_to_index(idx, animate=True)
+
+
+# ---------------------------
+# App
+# ---------------------------
 class RCApp(MDApp):
     # FS / notes
     fs = DictProperty({})
@@ -117,6 +319,11 @@ class RCApp(MDApp):
     # Metronome state
     bpm = NumericProperty(60)
     is_metronome_running = BooleanProperty(False)
+
+    # Timer picker state (H/M/S wheels)
+    t_hours = NumericProperty(0)
+    t_minutes = NumericProperty(0)
+    t_seconds = NumericProperty(0)
 
     # Internal metronome fields (audio + scheduling)
     _met_event = None
@@ -169,7 +376,6 @@ class RCApp(MDApp):
         Clock.schedule_once(self._sync_dial_angle, 0)
 
     # -------- Bottom bar (Notes / Timer) --------
-
     def switch_tab(self, name: str):
         sm = self.root.ids.sm
         order = ["notes", "note_view", "timer"]
@@ -190,7 +396,6 @@ class RCApp(MDApp):
             Clock.schedule_once(lambda dt: self._highlight_timer_icons(), 0)
 
     # -------- Metronome actions --------
-
     def toggle_metronome(self):
         if self.is_metronome_running:
             self.stop_metronome()
@@ -201,8 +406,7 @@ class RCApp(MDApp):
         self._ensure_click_sounds()
         self.is_metronome_running = True
         self._beat_index = 0
-        # fire the first tick immediately (t=0)
-        self._metronome_tick(0)
+        self._metronome_tick(0)  # first tick immediately
 
     def stop_metronome(self):
         self.is_metronome_running = False
@@ -221,18 +425,14 @@ class RCApp(MDApp):
             notes_icon.text_color = self.theme_cls.text_color
 
     def on_bpm(self, *_):
-        # keep the dial visual in sync
         self._sync_dial_angle()
         if not self.is_metronome_running:
             return
-        # How much of the current beat has already elapsed?
         if self._last_tick_ts is None:
-            # no tick has occurred yet; just schedule normally
             self._schedule_next_tick()
             return
         elapsed = perf_counter() - self._last_tick_ts
         new_interval = max(60.0 / float(max(1, self.bpm)), 0.001)
-        # remaining time should compress/expand to match new tempo, preserving phase
         remaining = max(0.001, new_interval - elapsed)
         self._schedule_next_tick(delay=remaining)
 
@@ -240,7 +440,6 @@ class RCApp(MDApp):
     def _ensure_click_sounds(self):
         if self._tick_hi and self._tick_lo:
             return
-        # generate two short sine "clicks": high vs low
         hi_path = os.path.join(os.getcwd(), "rc_tick_hi.wav")
         lo_path = os.path.join(os.getcwd(), "rc_tick_lo.wav")
         if not os.path.exists(hi_path):
@@ -254,12 +453,10 @@ class RCApp(MDApp):
         frames = int(sr * ms / 1000.0)
         with wave.open(path, "wb") as wf:
             wf.setnchannels(1)
-            wf.setsampwidth(2)  # 16-bit
+            wf.setsampwidth(2)
             wf.setframerate(sr)
-            # simple fade-in/out envelope to avoid pops
             for n in range(frames):
                 t = n / sr
-                # Hann window
                 env = 0.5 * (1 - math.cos(2 * math.pi *
                              (n / (frames - 1)))) if frames > 1 else 1.0
                 val = vol * env * math.sin(2 * math.pi * freq * t)
@@ -268,20 +465,16 @@ class RCApp(MDApp):
             wf.writeframes(b"")
 
     def _schedule_next_tick(self, delay=None):
-        # cancel any previous scheduled tick
         if self._met_event is not None:
             self._met_event.cancel()
             self._met_event = None
-        # decide delay: either explicit or based on current bpm
         if delay is None:
             delay = max(60.0 / float(max(1, self.bpm)), 0.001)
         self._met_event = Clock.schedule_once(self._metronome_tick, delay)
 
     def _metronome_tick(self, dt):
-        # make sure we're still running and sounds are ready
         if not self.is_metronome_running or not (self._tick_hi and self._tick_lo):
             return
-        # alternate: 0 = tick (high), 1 = tock (low)
         if self._beat_index % 2 == 0:
             self._tick_hi.stop()
             self._tick_hi.play()
@@ -289,14 +482,11 @@ class RCApp(MDApp):
             self._tick_lo.stop()
             self._tick_lo.play()
         self._beat_index += 1
-
-        # mark this tick time and schedule the next according to *current* bpm
         self._last_tick_ts = perf_counter()
         self._schedule_next_tick()
 
     # -------- Metronome dial Helper --------
     def _sync_dial_angle(self, *args):
-        """Set the dial’s visual to match current BPM."""
         try:
             dial = (
                 self.root.ids.sm.get_screen("timer")
@@ -308,22 +498,18 @@ class RCApp(MDApp):
             pass
 
     # -------- Timer sub-mode (Metronome / Timer / Stopwatch) --------
-
     def switch_timer_mode(self, mode: str):
-        """Switch the content inside the Timer screen and highlight the active icon."""
         order = ["metronome", "timer", "stopwatch"]
         if mode not in order:
             raise ValueError(f"Unknown timer mode: {mode}")
 
         modes = self.root.ids.get("timer_modes")
         if modes is None:
-            # Tree not ready yet; try again next frame
             Clock.schedule_once(lambda dt: self.switch_timer_mode(mode), 0)
             return
 
         current = self.timer_mode if self.timer_mode in order else "metronome"
 
-        # Slide direction + duration (page transitions ON)
         if order.index(mode) > order.index(current):
             modes.transition.direction = "left"
         elif order.index(mode) < order.index(current):
@@ -335,7 +521,6 @@ class RCApp(MDApp):
         self._highlight_timer_icons()
 
     def _highlight_timer_icons(self):
-        """Active icon = blue; others = default text color."""
         icon_met = self.root.ids.get("icon_metronome")
         icon_tim = self.root.ids.get("icon_timer")
         icon_swp = self.root.ids.get("icon_stopwatch")

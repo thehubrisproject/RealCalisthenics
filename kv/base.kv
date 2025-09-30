@@ -38,7 +38,6 @@
         PopMatrix
 
 <MetronomeDial>:
-    # draw dial base + rotating hand using self.angle
     canvas.before:
         Color:
             rgba: (0, 0, 0, 0)
@@ -46,13 +45,11 @@
             pos: self.x, self.y + dp(20)
             size: self.width, self.height - dp(20)
             radius: [dp(20), dp(20), dp(20), dp(20)]
-        # Dial base
         Color:
             rgba: app.theme_cls.bg_dark
         Ellipse:
             pos: self.x, self.y
             size: self.size
-        # Outer ring
         Color:
             rgba: (1, 1, 1, 0.08)
         Line:
@@ -60,7 +57,6 @@
             width: 1.2
 
     canvas.after:
-        # Rotating tick at the edge
         PushMatrix
         Rotate:
             angle: -self.angle
@@ -73,8 +69,6 @@
         PopMatrix
 
 
-
-
 MDScreen:
     MDBoxLayout:
         orientation: "vertical"
@@ -85,17 +79,16 @@ MDScreen:
             size_hint_y: .90
             transition: SlideTransition(duration=.20)
 
-            # Instantiate screens defined in included KV
             NotesScreen:
             NoteView:
 
-            # -------- TIMER (container with our own header) --------
+            # -------- TIMER (container with header) --------
             MDScreen:
                 name: "timer"
                 MDBoxLayout:
                     orientation: "vertical"
 
-                    # --- Custom top bar with 3 equal icon "tabs" (no ripple) ---
+                    # --- Custom top bar ---
                     MDBoxLayout:
                         id: timer_top_bar
                         size_hint_y: None
@@ -104,7 +97,6 @@ MDScreen:
                         spacing: "0dp"
                         md_bg_color: app.theme_cls.bg_dark
 
-                        # Metronome
                         ClickableBox:
                             size_hint_x: 1
                             on_release: app.switch_timer_mode("metronome")
@@ -118,7 +110,6 @@ MDScreen:
                                     text_color: app.theme_cls.text_color
                                     font_size: "22sp"
 
-                        # Timer (countdown)
                         ClickableBox:
                             size_hint_x: 1
                             on_release: app.switch_timer_mode("timer")
@@ -132,7 +123,6 @@ MDScreen:
                                     text_color: app.theme_cls.text_color
                                     font_size: "22sp"
 
-                        # Stopwatch
                         ClickableBox:
                             size_hint_x: 1
                             on_release: app.switch_timer_mode("stopwatch")
@@ -146,7 +136,7 @@ MDScreen:
                                     text_color: app.theme_cls.text_color
                                     font_size: "22sp"
 
-                    # --- Main area that switches by mode (WITH transitions) ---
+                    # --- Main area switching ---
                     MDScreenManager:
                         id: timer_modes
                         transition: SlideTransition(duration=.20)
@@ -155,12 +145,18 @@ MDScreen:
                         MDScreen:
                             name: "metronome"
 
+                            canvas.before:
+                                Color:
+                                    rgba: (0.07, 0.07, 0.07, 1)   # custom dark grey
+                                Rectangle:
+                                    pos: self.pos
+                                    size: self.size
+
                             MDBoxLayout:
                                 orientation: "vertical"
                                 padding: "12dp"
                                 spacing: "16dp"
-                                
-                                # --- Single toggle button (square, centered, play/pause) ---
+
                                 MDAnchorLayout:
                                     size_hint_y: None
                                     height: "72dp"
@@ -174,19 +170,13 @@ MDScreen:
                                             MDIcon:
                                                 icon: "pause" if app.is_metronome_running else "play"
                                                 theme_text_color: "Custom"
-                                                text_color: app.theme_cls.text_color
+                                                text_color: 1,1,1,1
                                                 font_size: "26sp"
-                                                halign: "center"
-                                                valign: "center"
 
-                                # ▼▼ add this spacer just below the button ▼▼
                                 Widget:
                                     size_hint_y: None
-                                    height: "16dp"   # try 16–24dp to taste
+                                    height: "16dp"
 
-
-
-                                # --- Big number + 'BPM' directly under it ---
                                 MDBoxLayout:
                                     orientation: "vertical"
                                     adaptive_height: True
@@ -201,12 +191,10 @@ MDScreen:
                                         theme_text_color: "Secondary"
                                         font_style: "Caption"
 
-                                # --- Spacer to push labels away from dial ---
                                 Widget:
                                     size_hint_y: None
                                     height: "8dp"
 
-                                # --- Visual dial (interactive) ---
                                 MetronomeDial:
                                     id: met_dial
                                     angle: app.bpm * 22.5
@@ -214,14 +202,148 @@ MDScreen:
                                     width: dp(220)
                                     height: dp(220)
                                     pos_hint: {"center_x": 0.5}
-             
+
                         # ==================== TIMER TAB ====================
                         MDScreen:
                             name: "timer"
-                            MDLabel:
-                                text: "Timer — empty"
-                                halign: "center"
-                                valign: "center"
+
+                            canvas.before:
+                                Color:
+                                    rgba: (0.07, 0.07, 0.07, 1)   # custom dark grey
+                                Rectangle:
+                                    pos: self.pos
+                                    size: self.size
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                padding: 0
+                                spacing: 0
+
+                                # Spacer to place wheels in upper third
+                                Widget:
+                                    size_hint_y: None
+                                    height: dp(110)
+
+                                # Wheels row (centered horizontally)
+                                AnchorLayout:
+                                    size_hint_y: None
+                                    height: dp(170)
+                                    anchor_x: "center"
+                                    anchor_y: "center"
+
+                                    MDBoxLayout:
+                                        size_hint: None, 1
+                                        width: dp(90) * 3 + dp(12) * 2
+                                        spacing: dp(12)
+
+                                        # ------- Hours -------
+                                        RelativeLayout:
+                                            size_hint: None, 1
+                                            width: dp(90)
+                                            canvas.after:
+                                                Color:
+                                                    rgba: 1,1,1,0.08
+                                                RoundedRectangle:
+                                                    pos: self.x, self.center_y - dp(18)
+                                                    size: self.width, dp(36)
+                                                    radius: [dp(10)]
+
+                                            # Pad the right to reserve space for the caption,
+                                            # so numbers look centered with the caption included.
+                                            BoxLayout:
+                                                size_hint: 1, 1
+                                                padding: [0, 0, dp(44), 0]  # reserve right-side room
+                                                NumberWheel:
+                                                    id: wheel_hours
+                                                    size_hint: 1, 1
+                                                    values: ["{:02d}".format(i) for i in range(0, 24)]
+                                                    value_index: app.t_hours
+                                                    on_value_index: app.t_hours = self.value_index
+
+                                            # Right-side caption overlay inside the band
+                                            MDBoxLayout:
+                                                size_hint: 1, None
+                                                height: dp(36)
+                                                pos_hint: {"center_y": 0.5}
+                                                padding: [0, 0, dp(8), 0]
+                                                MDLabel:
+                                                    text: "hours"
+                                                    halign: "right"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 1,1,1,0.65
+                                                    font_size: "11sp"
+
+                                        # ------- Minutes -------
+                                        RelativeLayout:
+                                            size_hint: None, 1
+                                            width: dp(90)
+                                            canvas.after:
+                                                Color:
+                                                    rgba: 1,1,1,0.08
+                                                RoundedRectangle:
+                                                    pos: self.x, self.center_y - dp(18)
+                                                    size: self.width, dp(36)
+                                                    radius: [dp(10)]
+
+                                            BoxLayout:
+                                                size_hint: 1, 1
+                                                padding: [0, 0, dp(44), 0]
+                                                NumberWheel:
+                                                    id: wheel_minutes
+                                                    size_hint: 1, 1
+                                                    values: ["{:02d}".format(i) for i in range(0, 60)]
+                                                    value_index: app.t_minutes
+                                                    on_value_index: app.t_minutes = self.value_index
+
+                                            MDBoxLayout:
+                                                size_hint: 1, None
+                                                height: dp(36)
+                                                pos_hint: {"center_y": 0.5}
+                                                padding: [0, 0, dp(8), 0]
+                                                MDLabel:
+                                                    text: "min"
+                                                    halign: "right"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 1,1,1,0.65
+                                                    font_size: "11sp"
+
+                                        # ------- Seconds -------
+                                        RelativeLayout:
+                                            size_hint: None, 1
+                                            width: dp(90)
+                                            canvas.after:
+                                                Color:
+                                                    rgba: 1,1,1,0.08
+                                                RoundedRectangle:
+                                                    pos: self.x, self.center_y - dp(18)
+                                                    size: self.width, dp(36)
+                                                    radius: [dp(10)]
+
+                                            BoxLayout:
+                                                size_hint: 1, 1
+                                                padding: [0, 0, dp(44), 0]
+                                                NumberWheel:
+                                                    id: wheel_seconds
+                                                    size_hint: 1, 1
+                                                    values: ["{:02d}".format(i) for i in range(0, 60)]
+                                                    value_index: app.t_seconds
+                                                    on_value_index: app.t_seconds = self.value_index
+
+                                            MDBoxLayout:
+                                                size_hint: 1, None
+                                                height: dp(36)
+                                                pos_hint: {"center_y": 0.5}
+                                                padding: [0, 0, dp(8), 0]
+                                                MDLabel:
+                                                    text: "sec"
+                                                    halign: "right"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 1,1,1,0.65
+                                                    font_size: "11sp"
+
+                                # Bottom filler so wheels stay in upper third
+                                Widget:
+                                    size_hint_y: 1
 
                         # ==================== STOPWATCH TAB ====================
                         MDScreen:
@@ -231,7 +353,7 @@ MDScreen:
                                 halign: "center"
                                 valign: "center"
 
-        # ---------- Bottom bar (10%, two equal halves, icons centered) ----------
+        # ---------- Bottom bar ----------
         MDBoxLayout:
             id: bottom_bar
             size_hint_y: .10
@@ -239,7 +361,6 @@ MDScreen:
             md_bg_color: app.theme_cls.bg_dark
             orientation: "horizontal"
 
-            # LEFT HALF (Notes)
             ClickableBox:
                 size_hint_x: .5
                 on_release: app.switch_tab("notes")
@@ -253,7 +374,6 @@ MDScreen:
                         text_color: app.theme_cls.text_color
                         font_size: "28sp"
 
-            # RIGHT HALF (Timer)
             ClickableBox:
                 size_hint_x: .5
                 on_release: app.switch_tab("timer")
