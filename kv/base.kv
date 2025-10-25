@@ -14,7 +14,7 @@
     size_hint: None, None
     size: dp(56), dp(56)
     md_bg_color: 0, 0, 0, 0
-    radius: [dp(12)]  # rounded corners
+    radius: [dp(12)]
     scale: 1
     on_press:
         Animation.cancel_all(self)
@@ -29,7 +29,7 @@
             x: self.scale
             y: self.scale
         Color:
-            rgba: (1, 1, 1, 0.08)  # subtle card background
+            rgba: (1, 1, 1, 0.08)
         RoundedRectangle:
             pos: self.pos
             size: self.size
@@ -55,7 +55,6 @@
         Line:
             circle: (self.center_x, self.center_y, self.width/2 - dp(6), 0, 360)
             width: 1.2
-
     canvas.after:
         PushMatrix
         Rotate:
@@ -144,14 +143,12 @@ MDScreen:
                         # ==================== METRONOME TAB ====================
                         MDScreen:
                             name: "metronome"
-
                             canvas.before:
                                 Color:
-                                    rgba: (0.07, 0.07, 0.07, 1)   # custom dark grey
+                                    rgba: (0.07, 0.07, 0.07, 1)
                                 Rectangle:
                                     pos: self.pos
                                     size: self.size
-
                             MDBoxLayout:
                                 orientation: "vertical"
                                 padding: "12dp"
@@ -206,152 +203,356 @@ MDScreen:
                         # ==================== TIMER TAB ====================
                         MDScreen:
                             name: "timer"
-
                             canvas.before:
                                 Color:
-                                    rgba: (0.07, 0.07, 0.07, 1)   # custom dark grey
+                                    rgba: (0.07, 0.07, 0.07, 1)
+                                Rectangle:
+                                    pos: self.pos
+                                    size: self.size
+
+                            # ---- Inner manager switches Setup <-> Countdown ----
+                            MDScreenManager:
+                                id: timer_view_sm
+                                transition: SlideTransition(duration=.20)
+
+                                # ---------- SETUP (wheels + controls) ----------
+                                MDScreen:
+                                    name: "setup"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: 0
+                                        spacing: 0
+
+                                        # Spacer to place wheels in upper third
+                                        Widget:
+                                            size_hint_y: None
+                                            height: dp(110)
+
+                                        # Wheels row (centered horizontally)
+                                        AnchorLayout:
+                                            size_hint_y: None
+                                            height: dp(170)
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+
+                                            MDBoxLayout:
+                                                size_hint: None, 1
+                                                width: dp(90) * 3 + dp(12) * 2
+                                                spacing: dp(12)
+
+                                                # ------- Hours -------
+                                                RelativeLayout:
+                                                    size_hint: None, 1
+                                                    width: dp(90)
+                                                    canvas.after:
+                                                        Color:
+                                                            rgba: 1,1,1,0.08
+                                                        RoundedRectangle:
+                                                            pos: self.x, self.center_y - dp(18)
+                                                            size: self.width, dp(36)
+                                                            radius: [dp(10)]
+                                                    BoxLayout:
+                                                        size_hint: 1, 1
+                                                        padding: [0, 0, dp(44), 0]
+                                                        NumberWheel:
+                                                            id: wheel_hours
+                                                            size_hint: 1, 1
+                                                            values: ["{:02d}".format(i) for i in range(0, 24)]
+                                                            value_index: app.t_hours
+                                                            on_value_index: app.t_hours = self.value_index
+                                                    MDBoxLayout:
+                                                        size_hint: 1, None
+                                                        height: dp(36)
+                                                        pos_hint: {"center_y": 0.5}
+                                                        padding: [0, 0, dp(8), 0]
+                                                        MDLabel:
+                                                            text: "hours"
+                                                            halign: "right"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 1,1,1,0.65
+                                                            font_size: "11sp"
+
+                                                # ------- Minutes -------
+                                                RelativeLayout:
+                                                    size_hint: None, 1
+                                                    width: dp(90)
+                                                    canvas.after:
+                                                        Color:
+                                                            rgba: 1,1,1,0.08
+                                                        RoundedRectangle:
+                                                            pos: self.x, self.center_y - dp(18)
+                                                            size: self.width, dp(36)
+                                                            radius: [dp(10)]
+                                                    BoxLayout:
+                                                        size_hint: 1, 1
+                                                        padding: [0, 0, dp(44), 0]
+                                                        NumberWheel:
+                                                            id: wheel_minutes
+                                                            size_hint: 1, 1
+                                                            values: ["{:02d}".format(i) for i in range(0, 60)]
+                                                            value_index: app.t_minutes
+                                                            on_value_index: app.t_minutes = self.value_index
+                                                    MDBoxLayout:
+                                                        size_hint: 1, None
+                                                        height: dp(36)
+                                                        pos_hint: {"center_y": 0.5}
+                                                        padding: [0, 0, dp(8), 0]
+                                                        MDLabel:
+                                                            text: "min"
+                                                            halign: "right"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 1,1,1,0.65
+                                                            font_size: "11sp"
+
+                                                # ------- Seconds -------
+                                                RelativeLayout:
+                                                    size_hint: None, 1
+                                                    width: dp(90)
+                                                    canvas.after:
+                                                        Color:
+                                                            rgba: 1,1,1,0.08
+                                                        RoundedRectangle:
+                                                            pos: self.x, self.center_y - dp(18)
+                                                            size: self.width, dp(36)
+                                                            radius: [dp(10)]
+                                                    BoxLayout:
+                                                        size_hint: 1, 1
+                                                        padding: [0, 0, dp(44), 0]
+                                                        NumberWheel:
+                                                            id: wheel_seconds
+                                                            size_hint: 1, 1
+                                                            values: ["{:02d}".format(i) for i in range(0, 60)]
+                                                            value_index: app.t_seconds
+                                                            on_value_index: app.t_seconds = self.value_index
+                                                    MDBoxLayout:
+                                                        size_hint: 1, None
+                                                        height: dp(36)
+                                                        pos_hint: {"center_y": 0.5}
+                                                        padding: [0, 0, dp(8), 0]
+                                                        MDLabel:
+                                                            text: "sec"
+                                                            halign: "right"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 1,1,1,0.65
+                                                            font_size: "11sp"
+
+                                        # ---- Controls row: Start (left) & Stop (right) ----
+                                        MDBoxLayout:
+                                            size_hint_y: None
+                                            height: dp(96)
+                                            padding: [dp(16), 0, dp(16), dp(12)]
+
+                                            RoundedButton:
+                                                size: dp(64), dp(64)
+                                                on_release: app.start_timer()
+                                                MDAnchorLayout:
+                                                    anchor_x: "center"
+                                                    anchor_y: "center"
+                                                    MDIcon:
+                                                        icon: "play"
+                                                        theme_text_color: "Custom"
+                                                        text_color: 1,1,1,1
+                                                        font_size: "26sp"
+
+                                            Widget:
+                                                size_hint_x: 1
+
+                                            RoundedButton:
+                                                size: dp(64), dp(64)
+                                                on_release: app.stop_timer()
+                                                MDAnchorLayout:
+                                                    anchor_x: "center"
+                                                    anchor_y: "center"
+                                                    MDIcon:
+                                                        icon: "stop"
+                                                        theme_text_color: "Custom"
+                                                        text_color: 1,1,1,1
+                                                        font_size: "26sp"
+
+                                        # Keep wheels in the upper third
+                                        Widget:
+                                            size_hint_y: 1
+
+                                # ---------- COUNTDOWN (ring + time + controls) ----------
+                                MDScreen:
+                                    name: "countdown"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: [dp(16), dp(36), dp(16), 0]
+                                        spacing: dp(12)
+
+                                        # Centered ring + time
+                                        AnchorLayout:
+                                            size_hint_y: None
+                                            height: dp(300)
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+
+                                            AnchorLayout:
+                                                size_hint: None, None
+                                                width: dp(260)
+                                                height: dp(260)
+                                                anchor_x: "center"
+                                                anchor_y: "center"
+
+                                                # Draw ring anchored at 12 o'clock, anti-clockwise
+                                                Widget:
+                                                    size_hint: 1, 1
+                                                    canvas.before:
+                                                        PushMatrix
+                                                        # Rotate canvas so 0° points to 12 o'clock instead of 3 o'clock
+                                                        Rotate:
+                                                            angle: 0
+                                                            origin: self.center
+
+                                                        # Background ring
+                                                        Color:
+                                                            rgba: 1, 1, 1, 0.12
+                                                        Line:
+                                                            circle: (self.center_x, self.center_y, self.width/2 - dp(12), 0, 360)
+                                                            width: dp(6)
+                                                            cap: 'round'
+
+                                                        # Remaining progress: 0..360 * progress (CCW), starts & ends at top
+                                                        Color:
+                                                            rgba: app.theme_cls.primary_color
+                                                        Line:
+                                                            circle: (self.center_x, self.center_y, self.width/2 - dp(12), 0, 360 * app.timer_progress)
+                                                            width: dp(6)
+                                                            cap: 'round'
+
+                                                        PopMatrix
+
+                                                MDLabel:
+                                                    text: app.timer_display
+                                                    size_hint: 1, 1
+                                                    text_size: self.size
+                                                    halign: "center"
+                                                    valign: "middle"
+                                                    font_style: "H2"
+
+                                        # Controls row (unchanged)
+                                        MDBoxLayout:
+                                            size_hint_y: None
+                                            height: dp(96)
+                                            padding: [dp(16), 0, dp(16), dp(12)]
+
+                                            RoundedButton:
+                                                size: dp(64), dp(64)
+                                                on_release: app.toggle_or_snooze_timer()
+                                                MDAnchorLayout:
+                                                    anchor_x: "center"
+                                                    anchor_y: "center"
+                                                    MDIcon:
+                                                        icon: "pause" if (app.is_timer_running or app.timer_state == "finished") else "play"
+                                                        theme_text_color: "Custom"
+                                                        text_color: 1,1,1,1
+                                                        font_size: "26sp"
+
+                                            Widget:
+                                                size_hint_x: 1
+
+                                            RoundedButton:
+                                                size: dp(64), dp(64)
+                                                on_release: app.stop_timer()
+                                                MDAnchorLayout:
+                                                    anchor_x: "center"
+                                                    anchor_y: "center"
+                                                    MDIcon:
+                                                        icon: "stop"
+                                                        theme_text_color: "Custom"
+                                                        text_color: 1,1,1,1
+                                                        font_size: "26sp"
+
+
+                        # ==================== STOPWATCH TAB ====================
+                        MDScreen:
+                            name: "stopwatch"
+                            canvas.before:
+                                Color:
+                                    rgba: (0.07, 0.07, 0.07, 1)
                                 Rectangle:
                                     pos: self.pos
                                     size: self.size
 
                             MDBoxLayout:
                                 orientation: "vertical"
-                                padding: 0
-                                spacing: 0
+                                padding: [dp(16), dp(24), dp(16), 0]
+                                spacing: dp(16)
 
-                                # Spacer to place wheels in upper third
-                                Widget:
-                                    size_hint_y: None
-                                    height: dp(110)
-
-                                # Wheels row (centered horizontally)
+                                # Big centered time
                                 AnchorLayout:
                                     size_hint_y: None
-                                    height: dp(170)
+                                    height: dp(200)
                                     anchor_x: "center"
                                     anchor_y: "center"
+                                    MDLabel:
+                                        text: app.sw_display
+                                        size_hint: 1, 1
+                                        text_size: self.size
+                                        halign: "center"
+                                        valign: "middle"
+                                        font_style: "H2"
 
+                                # Controls row: Start/Pause (left), Lap (center), Reset (right)
+                                MDBoxLayout:
+                                    size_hint_y: None
+                                    height: dp(96)
+                                    padding: [dp(16), 0, dp(16), dp(12)]
+
+                                    RoundedButton:
+                                        size: dp(64), dp(64)
+                                        on_release: app.sw_start_or_pause()
+                                        MDAnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIcon:
+                                                icon: "pause" if app.sw_running else "play"
+                                                theme_text_color: "Custom"
+                                                text_color: 1,1,1,1
+                                                font_size: "26sp"
+
+                                    Widget:
+                                        size_hint_x: 1
+
+                                    RoundedButton:
+                                        size: dp(64), dp(64)
+                                        on_release: app.sw_lap()
+                                        MDAnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIcon:
+                                                icon: "flag-outline"
+                                                theme_text_color: "Custom"
+                                                text_color: 1,1,1,1
+                                                font_size: "26sp"
+
+                                    Widget:
+                                        size_hint_x: 1
+
+                                    RoundedButton:
+                                        size: dp(64), dp(64)
+                                        on_release: app.sw_reset()
+                                        MDAnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIcon:
+                                                icon: "backup-restore"
+                                                theme_text_color: "Custom"
+                                                text_color: 1,1,1,1
+                                                font_size: "26sp"
+
+                                # Laps list (most recent first)
+                                ScrollView:
+                                    do_scroll_x: False
+                                    bar_width: 0
                                     MDBoxLayout:
-                                        size_hint: None, 1
-                                        width: dp(90) * 3 + dp(12) * 2
-                                        spacing: dp(12)
-
-                                        # ------- Hours -------
-                                        RelativeLayout:
-                                            size_hint: None, 1
-                                            width: dp(90)
-                                            canvas.after:
-                                                Color:
-                                                    rgba: 1,1,1,0.08
-                                                RoundedRectangle:
-                                                    pos: self.x, self.center_y - dp(18)
-                                                    size: self.width, dp(36)
-                                                    radius: [dp(10)]
-
-                                            # Pad the right to reserve space for the caption,
-                                            # so numbers look centered with the caption included.
-                                            BoxLayout:
-                                                size_hint: 1, 1
-                                                padding: [0, 0, dp(44), 0]  # reserve right-side room
-                                                NumberWheel:
-                                                    id: wheel_hours
-                                                    size_hint: 1, 1
-                                                    values: ["{:02d}".format(i) for i in range(0, 24)]
-                                                    value_index: app.t_hours
-                                                    on_value_index: app.t_hours = self.value_index
-
-                                            # Right-side caption overlay inside the band
-                                            MDBoxLayout:
-                                                size_hint: 1, None
-                                                height: dp(36)
-                                                pos_hint: {"center_y": 0.5}
-                                                padding: [0, 0, dp(8), 0]
-                                                MDLabel:
-                                                    text: "hours"
-                                                    halign: "right"
-                                                    theme_text_color: "Custom"
-                                                    text_color: 1,1,1,0.65
-                                                    font_size: "11sp"
-
-                                        # ------- Minutes -------
-                                        RelativeLayout:
-                                            size_hint: None, 1
-                                            width: dp(90)
-                                            canvas.after:
-                                                Color:
-                                                    rgba: 1,1,1,0.08
-                                                RoundedRectangle:
-                                                    pos: self.x, self.center_y - dp(18)
-                                                    size: self.width, dp(36)
-                                                    radius: [dp(10)]
-
-                                            BoxLayout:
-                                                size_hint: 1, 1
-                                                padding: [0, 0, dp(44), 0]
-                                                NumberWheel:
-                                                    id: wheel_minutes
-                                                    size_hint: 1, 1
-                                                    values: ["{:02d}".format(i) for i in range(0, 60)]
-                                                    value_index: app.t_minutes
-                                                    on_value_index: app.t_minutes = self.value_index
-
-                                            MDBoxLayout:
-                                                size_hint: 1, None
-                                                height: dp(36)
-                                                pos_hint: {"center_y": 0.5}
-                                                padding: [0, 0, dp(8), 0]
-                                                MDLabel:
-                                                    text: "min"
-                                                    halign: "right"
-                                                    theme_text_color: "Custom"
-                                                    text_color: 1,1,1,0.65
-                                                    font_size: "11sp"
-
-                                        # ------- Seconds -------
-                                        RelativeLayout:
-                                            size_hint: None, 1
-                                            width: dp(90)
-                                            canvas.after:
-                                                Color:
-                                                    rgba: 1,1,1,0.08
-                                                RoundedRectangle:
-                                                    pos: self.x, self.center_y - dp(18)
-                                                    size: self.width, dp(36)
-                                                    radius: [dp(10)]
-
-                                            BoxLayout:
-                                                size_hint: 1, 1
-                                                padding: [0, 0, dp(44), 0]
-                                                NumberWheel:
-                                                    id: wheel_seconds
-                                                    size_hint: 1, 1
-                                                    values: ["{:02d}".format(i) for i in range(0, 60)]
-                                                    value_index: app.t_seconds
-                                                    on_value_index: app.t_seconds = self.value_index
-
-                                            MDBoxLayout:
-                                                size_hint: 1, None
-                                                height: dp(36)
-                                                pos_hint: {"center_y": 0.5}
-                                                padding: [0, 0, dp(8), 0]
-                                                MDLabel:
-                                                    text: "sec"
-                                                    halign: "right"
-                                                    theme_text_color: "Custom"
-                                                    text_color: 1,1,1,0.65
-                                                    font_size: "11sp"
-
-                                # Bottom filler so wheels stay in upper third
-                                Widget:
-                                    size_hint_y: 1
-
-                        # ==================== STOPWATCH TAB ====================
-                        MDScreen:
-                            name: "stopwatch"
-                            MDLabel:
-                                text: "Stopwatch — empty"
-                                halign: "center"
-                                valign: "center"
+                                        id: sw_laps_box
+                                        orientation: "vertical"
+                                        size_hint_y: None
+                                        height: self.minimum_height
+                                        spacing: dp(6)
+                                        padding: [0, 0, 0, dp(12)]
 
         # ---------- Bottom bar ----------
         MDBoxLayout:

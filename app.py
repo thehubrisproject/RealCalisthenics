@@ -19,11 +19,11 @@ from kivy.properties import (
     BooleanProperty,
 )
 from kivy.uix.widget import Widget
-# Wheels
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.boxlayout import BoxLayout
 from kivymd.uix.label import MDLabel
 from kivymd.app import MDApp
+from kivymd.uix.boxlayout import MDBoxLayout
 
 from math import atan2, degrees
 
@@ -101,9 +101,6 @@ class MetronomeDial(Widget):
 
 # ---------------------------
 # iOS-style NumberWheel
-#  - exact centering
-#  - momentum-snap
-#  - tap-to-select (fixed: no vertical mirroring)
 # ---------------------------
 class NumberWheel(ScrollView):
     values = ListProperty([])
@@ -134,14 +131,17 @@ class NumberWheel(ScrollView):
 
         # momentum snap watcher
         self._snap_ev = None
-        self._vel_threshold = 5.0  # lower = waits longer before snapping
+        self._vel_threshold = 5.0
 
     # spacer so a row aligns with the visual center
     def _center_pad(self):
         return (self.height - self.ROW_H) / 2.0 if self.height else dp(40)
 
     def on_value_index(self, *_):
-        pass
+        # keep the visual row centered when changed from code
+        if self._built:
+            Clock.schedule_once(lambda dt: self._scroll_to_index(
+                self.value_index, animate=True), 0)
 
     # ---------- touch handling ----------
     def on_touch_down(self, touch):
@@ -161,11 +161,9 @@ class NumberWheel(ScrollView):
         if self._touch_active:
             self._touch_active = False
             if not self._touch_scrolled:
-                # tap -> snap to the exact row you tapped (corrected for coord system)
                 idx = self._index_from_touch(touch)
                 self._scroll_to_index(idx, animate=True)
             else:
-                # drag release -> wait for momentum to slow, then snap to nearest
                 self._begin_momentum_snap()
         return super().on_touch_up(touch)
 
@@ -203,7 +201,6 @@ class NumberWheel(ScrollView):
             return
 
         pad = self._center_pad()
-        # top/bottom spacers so a row can sit at the visual center line
         self._box.add_widget(BoxLayout(size_hint_y=None, height=pad))
         for s in self.values:
             self._box.add_widget(
@@ -224,7 +221,6 @@ class NumberWheel(ScrollView):
             self.value_index, animate=False), 0)
 
     def _index_from_scroll(self):
-        """Nearest row whose center is closest to the viewport center."""
         if not self._built or not self.values:
             return 0
         content_h = self._box.height
@@ -241,11 +237,9 @@ class NumberWheel(ScrollView):
         return max(0, min(len(self.values) - 1, idx))
 
     def _index_from_touch(self, touch):
-        """Map a tap Y to the nearest row index (fixed: bottom-origin -> top-origin)."""
         if not self._built or not self.values or not self.collide_point(*touch.pos):
             return self.value_index
 
-        # local y within widget (0 at bottom)
         local_y = touch.y - self.y
 
         content_h = self._box.height
@@ -253,13 +247,8 @@ class NumberWheel(ScrollView):
         if content_h <= view_h:
             return self.value_index
 
-        # distance from content top to top of viewport
         top_to_view_top = (1 - self.scroll_y) * (content_h - view_h)
-
-        # convert local_y (bottom-origin) to distance from the top of the viewport
         y_from_view_top = view_h - local_y
-
-        # absolute content y where the tap occurred
         y_content = top_to_view_top + y_from_view_top
 
         pad = self._center_pad()
@@ -278,9 +267,7 @@ class NumberWheel(ScrollView):
             return
 
         pad = self._center_pad()
-        # absolute Y (content coords) of target row center
         y_target = pad + idx * self.ROW_H + self.ROW_H / 2.0
-        # top-of-viewport so its center hits y_target
         top_to_view_top = y_target - view_h / 2.0
         top_to_view_top = max(0.0, min(content_h - view_h, top_to_view_top))
         target_scroll_y = 1.0 - (top_to_view_top / (content_h - view_h))
@@ -304,7 +291,12 @@ class NumberWheel(ScrollView):
 # App
 # ---------------------------
 class RCApp(MDApp):
-    # FS / notes
+
+    # ======================================================
+    # ===============  KIVY PROPERTIES (STATE)  ============
+    # ======================================================
+
+    # ---------- Files / Notes ----------
     fs = DictProperty({})
     current_path = ListProperty([])
     sort_mode = StringProperty("date")
@@ -314,23 +306,56 @@ class RCApp(MDApp):
     open_note_title = StringProperty("")
     open_note_body = StringProperty("")
 
-    # Timer sub-mode state
+    # ---------- Timer mode tab ----------
     timer_mode = StringProperty("metronome")
-    # Metronome state
+
+    # ---------- Metronome ----------
     bpm = NumericProperty(60)
     is_metronome_running = BooleanProperty(False)
 
-    # Timer picker state (H/M/S wheels)
+    # ---------- Timer (picker wheels) ----------
     t_hours = NumericProperty(0)
     t_minutes = NumericProperty(0)
     t_seconds = NumericProperty(0)
 
-    # Internal metronome fields (audio + scheduling)
+    # ---------- Countdown timer (UI + logic) ----------
+    is_timer_running = BooleanProperty(False)      # True while counting
+    # 'setup' | 'running' | 'paused' | 'finished'
+    timer_state = StringProperty("setup")
+    timer_display = StringProperty("00:00")        # center label text
+    timer_progress = NumericProperty(0.0)          # 1.0 -> 0.0
+
+    # ---------- Stopwatch (ADD: properties used by KV) ----------
+    sw_running = BooleanProperty(False)
+    sw_display = StringProperty("00:00.00")        # mm:ss.hh
+    sw_laps = ListProperty([])                     # list of lap strings
+
+    # ======================================================
+    # ===============  INTERNAL FIELDS (NON-KV) ===========
+    # ======================================================
+
+    # Timer internals
+    _timer_event = None
+    _timer_remaining = 0.0
+    _timer_set_seconds = 0
+    _timer_last_ts = None
+    _timer_beep = None
+
+    # Metronome internals
     _met_event = None
     _tick_hi = None
     _tick_lo = None
     _beat_index = 0
-    _last_tick_ts = None  # perf_counter() time of the last tick
+    _last_tick_ts = None
+
+    # Stopwatch internals
+    _sw_event = None
+    _sw_start_perf = 0.0
+    _sw_accum = 0.0
+
+    # ======================================================
+    # =====================  LIFECYCLE  ====================
+    # ======================================================
 
     def build(self):
         self.title = "RealCalisthenics (Prototype)"
@@ -372,10 +397,25 @@ class RCApp(MDApp):
 
         # Initialize timer sub-mode after widgets are built
         Clock.schedule_once(lambda dt: self.switch_timer_mode("metronome"), 0)
-        # Sync dial visual to current BPM at startup
         Clock.schedule_once(self._sync_dial_angle, 0)
+        Clock.schedule_once(self._render_sw_laps, 0)
 
-    # -------- Bottom bar (Notes / Timer) --------
+        # Preload sounds
+        Clock.schedule_once(lambda dt: (
+            self._ensure_click_sounds(), self._ensure_timer_beep()), 0)
+
+        # Keep timer UI consistent on boot
+        self._update_progress()
+        try:
+            self.root.ids.sm.get_screen(
+                "timer").ids.timer_view_sm.current = "setup"
+        except Exception:
+            pass
+
+    # ======================================================
+    # ==================  NAV / TABS  ======================
+    # ======================================================
+
     def switch_tab(self, name: str):
         sm = self.root.ids.sm
         order = ["notes", "note_view", "timer"]
@@ -395,7 +435,13 @@ class RCApp(MDApp):
         if name == "timer":
             Clock.schedule_once(lambda dt: self._highlight_timer_icons(), 0)
 
-    # -------- Metronome actions --------
+    def _timer_view_sm(self):
+        return self.root.ids.get("timer_view_sm")
+
+    # ======================================================
+    # ==================  METRONOME  =======================
+    # ======================================================
+
     def toggle_metronome(self):
         if self.is_metronome_running:
             self.stop_metronome()
@@ -406,7 +452,7 @@ class RCApp(MDApp):
         self._ensure_click_sounds()
         self.is_metronome_running = True
         self._beat_index = 0
-        self._metronome_tick(0)  # first tick immediately
+        self._metronome_tick(0)
 
     def stop_metronome(self):
         self.is_metronome_running = False
@@ -497,7 +543,10 @@ class RCApp(MDApp):
         except Exception:
             pass
 
-    # -------- Timer sub-mode (Metronome / Timer / Stopwatch) --------
+    # ======================================================
+    # ==================  TIMER (TAB)  =====================
+    # ======================================================
+
     def switch_timer_mode(self, mode: str):
         order = ["metronome", "timer", "stopwatch"]
         if mode not in order:
@@ -535,7 +584,279 @@ class RCApp(MDApp):
         icon_tim.text_color = active_col if self.timer_mode == "timer" else default_col
         icon_swp.text_color = active_col if self.timer_mode == "stopwatch" else default_col
 
-    # -------- Note editor helpers --------
+    # --------- TIMER helpers ---------
+    def _seconds_from_wheels(self):
+        return int(self.t_hours) * 3600 + int(self.t_minutes) * 60 + int(self.t_seconds)
+
+    def _update_wheels_from_seconds(self, total):
+        total = max(0, int(round(total)))
+        h = min(23, total // 3600)
+        total %= 3600
+        m = total // 60
+        s = total % 60
+        self.t_hours = h
+        self.t_minutes = m
+        self.t_seconds = s
+
+    def _format_time(self, secs):
+        secs = int(round(max(0, secs)))
+        h = secs // 3600
+        m = (secs % 3600) // 60
+        s = secs % 60
+        if h > 0:
+            return f"{h:02d}:{m:02d}:{s:02d}"
+        return f"{m:02d}:{s:02d}"
+
+    def _update_progress(self):
+        if self._timer_set_seconds > 0:
+            self.timer_progress = float(
+                self._timer_remaining) / float(self._timer_set_seconds)
+        else:
+            self.timer_progress = 0.0
+        self.timer_display = self._format_time(self._timer_remaining)
+
+    def _ensure_timer_beep(self):
+        """Dedicated short beep for when the countdown ends."""
+        if self._timer_beep:
+            return
+        path = os.path.join(os.getcwd(), "rc_timer_beep.wav")
+        if not os.path.exists(path):
+            sr, freq, ms, vol = 44100, 900, 220, 0.45
+            frames = int(sr * ms / 1000.0)
+            with wave.open(path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sr)
+                for n in range(frames):
+                    t = n / sr
+                    env = 0.5 * (1 - math.cos(2 * math.pi *
+                                 (n / max(1, frames - 1))))
+                    val = vol * env * math.sin(2 * math.pi * freq * t)
+                    wf.writeframesraw(struct.pack(
+                        "<h", int(max(-1, min(1, val)) * 32767)))
+                wf.writeframes(b"")
+        self._timer_beep = SoundLoader.load(path)
+
+    def _play_timer_beep(self):
+        self._ensure_timer_beep()
+        try:
+            if self._timer_beep:
+                self._timer_beep.stop()
+                self._timer_beep.play()
+        except Exception:
+            pass
+
+    def _switch_to_setup(self):
+        sm = self._timer_view_sm()
+        if sm:
+            sm.transition.direction = "right"
+            sm.current = "setup"
+
+    def _switch_to_countdown(self):
+        sm = self._timer_view_sm()
+        if sm:
+            sm.transition.direction = "left"
+            sm.current = "countdown"
+
+    # --------- TIMER controls ---------
+    def start_timer(self):
+        total = self._seconds_from_wheels()
+        if total <= 0:
+            return
+
+        # initialize timer values
+        self._timer_set_seconds = total
+        self._timer_remaining = float(total)
+        self._update_progress()  # sets timer_progress=1.0 and display
+
+        # set state and schedule
+        self.is_timer_running = True
+        self.timer_state = "running"
+        self._timer_last_ts = perf_counter()
+
+        # show countdown ring
+        self._switch_to_countdown()
+
+        # schedule ticking
+        if self._timer_event:
+            self._timer_event.cancel()
+        self._timer_event = Clock.schedule_interval(self._on_timer_tick, 0)
+
+    def _on_timer_tick(self, dt):
+        if self.timer_state != "running" or not self.is_timer_running:
+            return
+
+        now = perf_counter()
+        if self._timer_last_ts is None:
+            self._timer_last_ts = now
+        elapsed = now - self._timer_last_ts
+        self._timer_last_ts = now
+
+        self._timer_remaining = max(0.0, self._timer_remaining - elapsed)
+        self._update_progress()
+
+        if self._timer_remaining <= 0.0:
+            # finished: beep, stay on countdown at 0
+            self.is_timer_running = False
+            self.timer_state = "finished"
+            if self._timer_event:
+                self._timer_event.cancel()
+                self._timer_event = None
+            self._play_timer_beep()
+
+    def pause_timer(self):
+        if self.timer_state != "running":
+            return
+        self.is_timer_running = False
+        self.timer_state = "paused"
+        if self._timer_event:
+            self._timer_event.cancel()
+            self._timer_event = None
+
+    def resume_timer(self):
+        if self.timer_state != "paused" or self._timer_remaining <= 0:
+            return
+        self.is_timer_running = True
+        self.timer_state = "running"
+        self._timer_last_ts = perf_counter()
+        if self._timer_event:
+            self._timer_event.cancel()
+        self._timer_event = Clock.schedule_interval(self._on_timer_tick, 0)
+        # ensure we are on countdown UI
+        self._switch_to_countdown()
+
+    def stop_timer(self):
+        self.is_timer_running = False
+        self.timer_state = "setup"
+        if self._timer_event:
+            self._timer_event.cancel()
+            self._timer_event = None
+        # reset UI values
+        self._timer_set_seconds = 0
+        self._timer_remaining = 0.0
+        self.timer_progress = 0.0
+        self.timer_display = "00:00"
+        # back to setup view
+        self._switch_to_setup()
+
+    def toggle_or_snooze_timer(self):
+        # Running -> pause, Paused -> resume, Finished -> +30s and run
+        if self.timer_state == "finished":
+            self._timer_set_seconds = 30
+            self._timer_remaining = 30.0
+            self._update_progress()
+            self.is_timer_running = True
+            self.timer_state = "running"
+            self._timer_last_ts = perf_counter()
+            if self._timer_event:
+                self._timer_event.cancel()
+            self._timer_event = Clock.schedule_interval(self._on_timer_tick, 0)
+            self._switch_to_countdown()
+            return
+
+        if self.timer_state == "running" and self.is_timer_running:
+            self.pause_timer()
+        elif self.timer_state in ("paused", "running"):
+            self.resume_timer()
+
+    # ======================================================
+    # ==================  STOPWATCH  =======================
+    # ======================================================
+
+    # ---------- STOPWATCH helpers ----------
+    def _format_sw(self, secs: float) -> str:
+        # mm:ss.hh (hundredths)
+        secs = max(0.0, secs)
+        minutes = int(secs // 60)
+        s = int(secs % 60)
+        hund = int((secs - int(secs)) * 100)
+        return f"{minutes:02d}:{s:02d}.{hund:02d}"
+
+    def _sw_update_display(self, now_perf=None):
+        if self.sw_running:
+            if now_perf is None:
+                from time import perf_counter
+                now_perf = perf_counter()
+            elapsed = self._sw_accum + (now_perf - self._sw_start_perf)
+        else:
+            elapsed = self._sw_accum
+        self.sw_display = self._format_sw(elapsed)
+
+    # ---------- STOPWATCH controls ----------
+    def sw_start_or_pause(self):
+        if not self.sw_running:
+            # start/resume
+            from time import perf_counter
+            self._sw_start_perf = perf_counter()
+            self.sw_running = True
+            if self._sw_event:
+                self._sw_event.cancel()
+            # ~60fps UI update for smooth hundredths
+            self._sw_event = Clock.schedule_interval(self._on_sw_tick, 0)
+        else:
+            # pause
+            from time import perf_counter
+            now = perf_counter()
+            self._sw_accum += (now - self._sw_start_perf)
+            self.sw_running = False
+            if self._sw_event:
+                self._sw_event.cancel()
+                self._sw_event = None
+            self._sw_update_display(now_perf=now)
+
+    def _on_sw_tick(self, dt):
+        self._sw_update_display()
+
+    def sw_reset(self):
+        self.sw_running = False
+        if self._sw_event:
+            self._sw_event.cancel()
+            self._sw_event = None
+        self._sw_accum = 0.0
+        self._sw_update_display()
+        self.sw_laps = []  # triggers on_sw_laps -> re-render
+
+    def sw_lap(self):
+        # capture current display even if paused
+        self._sw_update_display()
+        # store most recent first, keep last 50
+        self.sw_laps = [self.sw_display] + self.sw_laps[:49]
+
+    # ---------- LAPS RENDER ----------
+    def _render_sw_laps(self, *_):
+        """Rebuild the laps list UI."""
+        box = self.root.ids.get("sw_laps_box")
+        if not box:
+            return
+        box.clear_widgets()
+
+        total = len(self.sw_laps)
+        for i, t in enumerate(self.sw_laps):
+            row = MDBoxLayout(
+                size_hint_y=None,
+                height=dp(32),
+                padding=[dp(8), 0, dp(8), 0],
+            )
+            row.add_widget(MDLabel(
+                text=f"Lap {total - i}",
+                size_hint_x=.35,
+                halign="left",
+                theme_text_color="Secondary",
+            ))
+            row.add_widget(MDLabel(
+                text=t,
+                halign="right",
+            ))
+            box.add_widget(row)
+
+    def on_sw_laps(self, instance, value):
+        """Called automatically whenever self.sw_laps changes."""
+        Clock.schedule_once(self._render_sw_laps, 0)
+
+    # ======================================================
+    # ================  NOTE EDITOR HELPERS  ===============
+    # ======================================================
+
     def focus_note_text(self):
         editor = self.root.ids.sm.get_screen("note_view").ids.note_editor
         editor.focus = True

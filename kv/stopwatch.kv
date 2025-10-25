@@ -1,0 +1,7 @@
+    # ---- Stopwatch state ----
+    sw_running = BooleanProperty(False)
+    sw_display = StringProperty("00:00.00")   # mm:ss.hh
+    _sw_event = None
+    _sw_start_perf = 0.0
+    _sw_accum = 0.0   # accumulated seconds when paused
+    sw_laps = ListProperty([])  # list[str]
