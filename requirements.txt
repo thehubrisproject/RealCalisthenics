@@ -1,20 +1,18 @@
+# === Core app deps (cross-platform) ===
 asyncgui==0.6.3
 asynckivy==0.6.4
-certifi==2025.8.3
-charset-normalizer==3.4.3
-docutils==0.22.2
-filetype==1.2.0
-idna==3.10
 Kivy==2.3.1
 Kivy-Garden==0.1.5
-kivy_deps.angle==0.4.0
-kivy_deps.glew==0.3.1
-kivy_deps.sdl2==0.8.0
 KivyMD==1.2.0
 materialyoucolor==2.0.10
-pillow==10.4.0
+pillow==11.3.0
+filetype==1.2.0
 Pygments==2.19.2
-pypiwin32==223
-pywin32==311
 requests==2.32.5
-urllib3==2.5.0
+
+# === Windows-only runtime deps (won’t install on macOS) ===
+kivy_deps.sdl2==0.8.0; sys_platform == "win32"
+kivy_deps.glew==0.3.1; sys_platform == "win32"
+kivy_deps.angle==0.4.0; sys_platform == "win32"
+pywin32==311; sys_platform == "win32"
+pypiwin32==223; sys_platform == "win32"

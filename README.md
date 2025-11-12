@@ -12,6 +12,15 @@ A minimalist training app for calisthenics athletes:
 
 Built under **TheHubrisProject**.
 
+## 🧠 Setup Instructions
+
+### 1️⃣ Requirements
+- Python 3.10 or newer
+- pip (Python package manager)
+- (macOS only) Homebrew libraries for Kivy:
+  ```bash
+  brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer gstreamer
+
 ## Setup
 ```bash
 # Clone repo
